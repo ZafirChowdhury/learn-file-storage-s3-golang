@@ -1,11 +1,13 @@
 package main
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
@@ -45,11 +47,6 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	defer file.Close()
 
 	contentType := header.Header.Get("Content-Type")
-	fileData, err := io.ReadAll(file)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Unable to parse form file", err)
-		return
-	}
 
 	// check if user owns the vid
 	video, err := cfg.db.GetVideo(videoID)
@@ -62,9 +59,28 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fileDataBase64 := base64.StdEncoding.EncodeToString(fileData)
-	thumbnailURL := fmt.Sprintf("data:%s;base64,%s", contentType, fileDataBase64)
-	video.ThumbnailURL = &thumbnailURL
+	mimeType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid content type", err)
+		return
+	}
+	if mimeType != "image/jpeg" && mimeType != "image/png" {
+		respondWithError(w, http.StatusBadRequest, "Invalid file type", nil)
+		return
+	}
+
+	fileExtention := mimeType
+	filePath := filepath.Join(cfg.assetsRoot, videoID.String()+fileExtention)
+	localFile, err := os.Create(filePath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Internal server error", errors.New(""))
+		return
+	}
+	defer localFile.Close()
+
+	io.Copy(localFile, file)
+	url := fmt.Sprintf("http://localhost:%s/assets/%s%s", cfg.port, videoID, fileExtention)
+	video.ThumbnailURL = &url
 
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
