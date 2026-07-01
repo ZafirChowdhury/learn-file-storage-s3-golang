@@ -76,24 +76,38 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	directory, err := getVideoAspectRatio(tempFile.Name())
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "error detarmining aspec ratio", err)
-		return
-	}
-
 	_, err = tempFile.Seek(0, io.SeekStart)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Could not reset file pointer", err)
 		return
 	}
 
+	directory, err := getVideoAspectRatio(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "error detarmining aspec ratio", err)
+		return
+	}
+
+	fastStartVideoPath, err := processVideoForFastStart(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not create fast start video", err)
+		return
+	}
+
+	fastStartVideo, err := os.Open(fastStartVideoPath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error while creading fast start video", err)
+		return
+	}
+	defer os.Remove(fastStartVideoPath)
+	defer fastStartVideo.Close()
+
 	key := getAssetPath(mediaType)
 	key = path.Join(directory, key)
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      aws.String(cfg.s3Bucket),
 		Key:         aws.String(key),
-		Body:        tempFile,
+		Body:        fastStartVideo,
 		ContentType: aws.String(mediaType),
 	})
 	if err != nil {
