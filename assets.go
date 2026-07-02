@@ -51,7 +51,7 @@ func mediaTypeToExt(mediaType string) string {
 	return "." + parts[1]
 }
 
-func getVideoAspectRatio(filePath string) (string, error) {
+func getVideoAspectRatioOld(filePath string) (string, error) {
 	cmd := exec.Command(
 		"ffprobe",
 		"-v",
@@ -96,7 +96,7 @@ func getVideoAspectRatio(filePath string) (string, error) {
 	}
 }
 
-func processVideoForFastStart(filePath string) (string, error) {
+func processVideoForFastStartOld(filePath string) (string, error) {
 	outputFilePath := filePath + ".processing"
 	cmd := exec.Command(
 		"ffmpeg",
